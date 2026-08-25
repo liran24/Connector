@@ -4,9 +4,21 @@ using AiVisibility.Core.Http;
 namespace AiVisibility.Core.Catalog;
 
 /// <summary>
-/// A product as the scanner needs to see it: where its page lives and what copy it carries.
+/// A product as the scanner needs to see it: where its page lives, what copy it carries,
+/// and the vendor and type the store files it under.
 /// </summary>
-public sealed record CatalogProduct(string Title, string Handle, Uri Url, string BodyHtml);
+/// <param name="Vendor">
+/// The brand the store sells under. Doubles as the name to look for when checking whether
+/// assistants mention the store by name.
+/// </param>
+/// <param name="ProductType">The store's own category label, used to build shopper prompts.</param>
+public sealed record CatalogProduct(
+    string Title,
+    string Handle,
+    Uri Url,
+    string BodyHtml,
+    string? Vendor = null,
+    string? ProductType = null);
 
 /// <summary>
 /// Reads a storefront's catalogue from Shopify's public <c>/products.json</c> endpoint.
@@ -75,7 +87,16 @@ public sealed class ShopifyCatalogSource
 
         var title = element.TryGetProperty("title", out var t) ? t.GetString() ?? handle : handle;
         var body = element.TryGetProperty("body_html", out var b) ? b.GetString() ?? string.Empty : string.Empty;
+        var vendor = element.TryGetProperty("vendor", out var v) ? Trimmed(v) : null;
+        var type = element.TryGetProperty("product_type", out var pt) ? Trimmed(pt) : null;
 
-        return new CatalogProduct(title, handle, new Uri(storeUrl, $"/products/{handle}"), body);
+        return new CatalogProduct(title, handle, new Uri(storeUrl, $"/products/{handle}"), body, vendor, type);
+    }
+
+    /// <summary>Reads a string property, treating blank values as absent.</summary>
+    private static string? Trimmed(JsonElement element)
+    {
+        var value = element.ValueKind == JsonValueKind.String ? element.GetString()?.Trim() : null;
+        return string.IsNullOrEmpty(value) ? null : value;
     }
 }

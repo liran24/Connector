@@ -33,25 +33,54 @@ This matters commercially, not just technically: stores behind aggressive bot pr
 are the ones most likely to be blocking AI crawlers, and an all-clear is the worst possible
 answer to give them.
 
+## Visibility tracking
+
+Scanning tells a merchant whether agents *can* read the store. Tracking tells them whether
+agents actually *recommend* it — which is the question worth paying for monthly.
+
+It builds shopper questions from the store's own product types, puts them to Claude with web
+search on, and reports whether the store got cited and who was cited ahead of it.
+
+Two deliberate design choices:
+
+- **Prompts never name the brand.** Asking an assistant about a store by name proves nothing;
+  it will find it. What matters is whether the store surfaces when a shopper describes a need
+  and names no brand, because that is the query a new customer types.
+- **A citation and a name-drop are counted separately.** An assistant can praise a brand while
+  linking the shopper somewhere else. Collapsing the two would inflate the number the merchant
+  is paying to trust, so they stay distinct all the way into the report.
+
+This approximates what a shopper sees rather than reproducing it: consumer chat products layer
+their own retrieval and ranking on top of the model. It is a trend line, not a transcript —
+and the report says so.
+
 ## Running it
 
 ```bash
-dotnet run --project src/AiVisibility.Cli -- https://example.myshopify.com 10
+# Audit readability. No credentials needed.
+dotnet run --project src/AiVisibility.Cli -- scan https://example.myshopify.com 10
+
+# Check whether assistants recommend it. Needs ANTHROPIC_API_KEY; spends credit.
+dotnet run --project src/AiVisibility.Cli -- track https://example.myshopify.com 2
 ```
 
-The second argument is how many products to sample (default 10). Themes emit the same
-markup for every product, so a sample is representative.
+For `scan`, the trailing number is how many products to sample (default 10) — themes emit the
+same markup for every product, so a sample is representative. For `track`, it is how many
+product categories to cover (default 2); each category costs three API calls per run, which is
+the main lever on what tracking costs to operate.
 
 ## Layout
 
 ```
-src/AiVisibility.Core   Scanning engine — no I/O beyond IPageFetcher, fully testable
-src/AiVisibility.Cli    Console runner
-tests/                  xUnit suite, fixture-driven (no network)
+src/AiVisibility.Core/Checks      The four readability checks
+src/AiVisibility.Core/Tracking    Shopper prompts, assistant probes, mention detection
+src/AiVisibility.Cli              Console runner
+tests/                            xUnit suite, fixture-driven (no network, no API spend)
 ```
 
-`IPageFetcher` is the only seam that touches the network, so every check is tested against
-fixtures rather than live stores.
+`IPageFetcher` and `IAssistantProbe` are the only seams that touch the network, so every check
+and every piece of mention analysis is tested against fixtures rather than live stores or paid
+API calls.
 
 ```bash
 dotnet test
@@ -59,6 +88,11 @@ dotnet test
 
 ## Status
 
-The scanning engine and CLI are working and covered by tests. Not yet built: the Shopify
-app shell (OAuth, webhooks, billing, embedded admin UI) and the visibility-tracking module
-that queries assistants to see whether a store is actually being recommended.
+The scanning engine, the tracking module and the CLI are working and covered by 65 tests.
+
+Two paths have not been exercised end to end from the build environment, which blocks
+outbound requests to storefronts and has no API credentials: a successful live scan, and a
+live tracking run against the Claude API. Both are covered by fixtures; both are worth a
+first real run.
+
+Not yet built: the Shopify app shell — OAuth, webhooks, billing, and the embedded admin UI.
