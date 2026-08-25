@@ -1,0 +1,181 @@
+/*
+ * Plain CSS, deliberately.
+ *
+ * Shopify's Polaris React is deprecated, and building a new app on a retired component
+ * library is a poor start. These are a few dozen lines that echo the admin's look closely
+ * enough to feel native, and they are far easier to change than a component library's props.
+ *
+ * Every colour is a token below, so restyling means editing one block.
+ */
+
+:root {
+  --bg: #f6f6f7;
+  --surface: #ffffff;
+  --border: #e1e3e5;
+  --text: #202223;
+  --text-muted: #6d7175;
+  --accent: #2c6ecb;
+
+  --good: #007f5f;
+  --fair: #b98900;
+  --poor: #d72c0d;
+  --none: #8c9196;
+
+  --radius: 8px;
+  --gap: 16px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.page__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--gap);
+  flex-wrap: wrap;
+}
+
+h1 { font-size: 20px; margin: 0 0 4px; }
+h2 { font-size: 15px; margin: 0 0 12px; }
+h3 { font-size: 14px; margin: 0; }
+p  { margin: 0 0 8px; }
+
+.muted { color: var(--text-muted); }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+
+.button {
+  background: var(--text);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.button:disabled { opacity: 0.5; cursor: default; }
+.button--quiet { background: transparent; color: var(--accent); padding-left: 0; }
+
+/* --- score --- */
+
+.score-card { display: flex; gap: 24px; align-items: center; }
+.score-card__text h2 { margin-bottom: 4px; }
+
+.score {
+  font-size: 48px;
+  font-weight: 600;
+  line-height: 1;
+  min-width: 120px;
+}
+.score__total { font-size: 18px; font-weight: 400; color: var(--text-muted); }
+
+.score--good { color: var(--good); }
+.score--fair { color: var(--fair); }
+.score--poor { color: var(--poor); }
+.score--none { color: var(--none); }
+
+/* --- areas --- */
+
+.areas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.area__header { display: flex; justify-content: space-between; margin-bottom: 6px; }
+.area__score { color: var(--text-muted); }
+.area__reason { font-size: 13px; margin: 0; }
+
+.bar { background: var(--bg); border-radius: 4px; height: 6px; overflow: hidden; }
+.bar__fill { background: var(--accent); height: 100%; }
+
+/* --- trend --- */
+
+.trend__header { display: flex; justify-content: space-between; align-items: baseline; }
+.trend { width: 100%; height: 120px; }
+.trend polyline { stroke: var(--accent); }
+
+.trend__change { font-size: 13px; font-weight: 500; }
+.trend__change--up   { color: var(--good); }
+.trend__change--down { color: var(--poor); }
+.trend__change--flat { color: var(--text-muted); }
+
+/* --- findings --- */
+
+.findings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 20px; }
+.finding { border-top: 1px solid var(--border); padding-top: 16px; }
+.finding:first-child { border-top: none; padding-top: 0; }
+
+.finding__header { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
+.finding__fix { color: var(--text); }
+.finding__link { font-size: 13px; color: var(--accent); word-break: break-all; }
+
+.badge {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 3px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+.badge--critical  { background: #fdeae7; color: var(--poor); }
+.badge--important { background: #fff5ea; color: var(--fair); }
+.badge--minor     { background: var(--bg); color: var(--text-muted); }
+
+/* --- states --- */
+
+.empty { text-align: center; }
+.empty .button { margin-top: 12px; }
+.notice { border-left: 3px solid var(--fair); }
+
+/* --- subscribe --- */
+
+.subscribe { border-left: 3px solid var(--accent); }
+.subscribe__error { color: var(--poor); }
+
+/* --- tracking --- */
+
+.tracking__summary { font-size: 15px; }
+.tracking__heading { margin: 20px 0 10px; color: var(--text-muted); font-weight: 600; }
+.tracking__caveat { font-size: 12px; margin-top: 20px; }
+
+.tracking__stats { display: flex; gap: 32px; margin: 16px 0 4px; }
+.stat__value { font-size: 24px; font-weight: 600; }
+.stat__value--strong { color: var(--accent); }
+.stat__label { font-size: 12px; color: var(--text-muted); }
+
+.rivals, .questions { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.rival { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.question { display: flex; gap: 10px; align-items: baseline; font-size: 13px; }
+.question__text { color: var(--text-muted); }
+
+.pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.pill--cited      { background: #e3f1df; color: var(--good); }
+.pill--named-only { background: #fff5ea; color: var(--fair); }
+.pill--absent     { background: var(--bg); color: var(--text-muted); }
+.pill--failed     { background: #fdeae7; color: var(--poor); }
