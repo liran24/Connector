@@ -160,10 +160,11 @@ rather than failing a merchant's install hours later.
 | `Shopify` | API key and secret, public app URL, requested scopes, pinned Admin API version |
 | `Billing` | Plan name, monthly price, currency, trial length, test-charge mode |
 | `ScanSchedule` | Whether recurring scans run, their cron expression (UTC), worker count |
+| `Tracking` | Whether visibility tracking is on, its Anthropic API key, categories per run, model |
 | `ConnectionStrings:Database` | SQLite locally; a string containing `Host=` switches to PostgreSQL |
 | `DataProtection:KeyRingPath` | Where the keys that encrypt stored access tokens live |
 
-Three settings that will bite if you get them wrong:
+Four settings that will bite if you get them wrong:
 
 - **`Shopify:ApiSecret`** — never in `appsettings.json`. Use user-secrets locally and an
   environment variable in production.
@@ -172,6 +173,8 @@ Three settings that will bite if you get them wrong:
 - **`DataProtection:KeyRingPath`** — must persist across restarts and be shared by every
   replica. Lose it and every stored access token becomes unreadable, meaning every merchant
   has to reinstall.
+- **`Tracking:CategoriesPerRun`** — three API calls per category per run. This is the only
+  number that decides what tracking costs you to serve, so derive your pricing tiers from it.
 
 ---
 
@@ -195,7 +198,7 @@ src/AiVisibility.App/           The Shopify app.
   dashboard/                    React + TypeScript, built into wwwroot
 
 src/AiVisibility.Cli/           Console runner for both engines
-tests/                          144 xUnit tests across two suites
+tests/                          159 xUnit tests across two suites
 ```
 
 ### Dependency injection
@@ -305,12 +308,18 @@ dotnet test                                    # 144 tests
 cd src/AiVisibility.App/dashboard && npm run typecheck
 ```
 
-The suites run offline and cost nothing: no live requests, no API spend. Two bugs in this
-codebase were caught by *running* it rather than by tests, and both now have regression tests:
+The suites run offline and cost nothing: no live requests, no API spend. Four bugs in this codebase were caught by *running* it rather than by tests, and all four now
+have regression coverage:
 
 - The scanner reporting 94/100 for a store it could not read at all.
 - The .NET configuration binder **appending** to an options property's default value rather
   than replacing it, which produced `scope=read_products,read_products` on the authorize URL.
+- Hangfire's static `RecurringJob` facade reading a global `JobStorage` that a DI-configured
+  app never sets, which threw at startup.
+- **SQLite refusing to translate `ORDER BY` over a `DateTimeOffset`**, so every "latest" and
+  "history" query threw at runtime. The existing tests used SQLite but only inserted and
+  deleted rows — they never ran the ordering. `ScanHistoryQueryTests` now reads through the
+  service, which is what closes that gap.
 
 That is the argument for running the thing, not only testing it.
 
@@ -351,12 +360,29 @@ Hangfire starting its scheduler.
 | A live tracking run | `ANTHROPIC_API_KEY` |
 | A real OAuth install | A Partner account and a development store |
 
+### Billing and access
+
+Charges go through Shopify's Billing API — billing any other way is grounds for removal from
+the App Store, so there is no other path in this codebase.
+
+The flow: the dashboard calls `POST /api/billing/subscribe`, which creates a charge and
+returns an approval URL; the merchant approves on Shopify's own screen; Shopify redirects
+them to `/billing/confirm`, which is verified by **query HMAC rather than a session token** —
+it is a top-level browser redirect, not a call from the embedded app. The charge status is
+then read back from Shopify rather than trusted from the redirect, because a URL a merchant
+can edit is not evidence that they paid.
+
+`ActiveSubscriptionFilter` guards the routes that spend something: scanning makes a dozen
+outbound requests, tracking spends API credit. Read-only routes stay open to a lapsed shop —
+they already paid for those reports, and a locked screen is a worse argument for resubscribing
+than the reports themselves. The filter returns **402**, which the dashboard uses to show the
+subscribe prompt rather than an error.
+
 **Not built yet:**
 
-- Billing is implemented but not yet wired into a route — nothing calls `ISubscriptionService`
-  or the `/billing/confirm` return URL yet.
-- Tracking is not exposed through the dashboard API; only scanning is.
 - The dashboard is a starting point, not a finished product. It is plain React with plain CSS
   rather than a component library: **Shopify's Polaris React is deprecated** in favour of
   Polaris web components, and starting a new app on a retired library is a poor bet. Every
   colour is a token at the top of `styles.css`, so restyling means editing one block.
+- Tracking runs only on demand. The recurring job rescans; it does not re-track.
+- No email or in-app notification when a score drops.

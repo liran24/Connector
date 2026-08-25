@@ -33,7 +33,9 @@ public static class DashboardApiEndpoints
         api.MapGet("/shop", GetShop);
         api.MapGet("/scans/latest", GetLatestScan);
         api.MapGet("/scans/history", GetHistory);
-        api.MapPost("/scans", RunScan);
+        // Scanning makes a dozen outbound requests to a storefront, so it needs a paying
+        // shop. Reading past reports does not, and stays open to a lapsed one.
+        api.MapPost("/scans", RunScan).AddEndpointFilter<ActiveSubscriptionFilter>();
 
         return app;
     }

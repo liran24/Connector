@@ -1,6 +1,12 @@
 import createApp from "@shopify/app-bridge";
 import { getSessionToken } from "@shopify/app-bridge/utilities";
-import type { ScanHistoryPoint, ScanReport, ShopStatus } from "./types";
+import type {
+  Plan,
+  ScanHistoryPoint,
+  ScanReport,
+  ShopStatus,
+  TrackingReport,
+} from "./types";
 
 /**
  * The API client.
@@ -66,15 +72,37 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   if (!response.ok) {
-    throw new ApiError(
-      response.status === 401
-        ? "Your session expired. Reload the page."
-        : `The server returned ${response.status}.`,
-      response.status,
-    );
+    throw new ApiError(await messageFor(response), response.status);
   }
 
   return (await response.json()) as T;
+}
+
+/**
+ * Turns an error response into something worth showing a merchant.
+ *
+ * The backend sends a distinct status and message per failure — a lapsed subscription is not
+ * the same problem as a password-protected storefront — so those are surfaced rather than
+ * flattened into one generic error.
+ */
+async function messageFor(response: Response): Promise<string> {
+  if (response.status === 401) {
+    return "Your session expired. Reload the page.";
+  }
+
+  if (response.status === 402) {
+    return "This needs an active subscription.";
+  }
+
+  try {
+    const body = (await response.json()) as { detail?: string; title?: string };
+    if (body.detail) return body.detail;
+    if (body.title) return body.title;
+  } catch {
+    // Not a JSON body; fall through to the generic message.
+  }
+
+  return `The server returned ${response.status}.`;
 }
 
 export const api = {
@@ -87,4 +115,17 @@ export const api = {
 
   /** Runs a scan now. Takes several seconds — it fetches real pages from the storefront. */
   runScan: () => request<ScanReport>("/api/scans", { method: "POST" }),
+
+  getPlan: () => request<Plan>("/api/billing/plan"),
+
+  /** Creates a charge and returns where to send the merchant to approve it. */
+  subscribe: () => request<{ approvalUrl: string }>("/api/billing/subscribe", { method: "POST" }),
+
+  /** Whether this installation has tracking configured at all. */
+  getTrackingAvailability: () => request<{ available: boolean }>("/api/tracking/availability"),
+
+  getLatestTracking: () => request<TrackingReport | null>("/api/tracking/latest"),
+
+  /** Runs tracking now. Spends API credit, and takes longer than a scan. */
+  runTracking: () => request<TrackingReport>("/api/tracking", { method: "POST" }),
 };

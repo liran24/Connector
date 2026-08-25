@@ -22,6 +22,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddValidatedOptions<ShopifyOptions>(builder.Configuration, ShopifyOptions.SectionName);
 builder.Services.AddValidatedOptions<BillingOptions>(builder.Configuration, BillingOptions.SectionName);
 builder.Services.AddValidatedOptions<ScanScheduleOptions>(builder.Configuration, ScanScheduleOptions.SectionName);
+builder.Services.AddValidatedOptions<TrackingOptions>(builder.Configuration, TrackingOptions.SectionName);
 
 // ---------------------------------------------------------------------------
 // Database
@@ -68,6 +69,7 @@ builder.Services.AddSingleton(provider =>
 
 builder.Services.AddScoped<WebhookRequestReader>();
 builder.Services.AddScoped<SessionTokenFilter>();
+builder.Services.AddScoped<ActiveSubscriptionFilter>();
 builder.Services.AddHttpClient<IAccessTokenExchange, AccessTokenExchange>();
 builder.Services.AddHttpClient<ISubscriptionService, SubscriptionService>();
 
@@ -76,6 +78,7 @@ builder.Services.AddHttpClient<ISubscriptionService, SubscriptionService>();
 // ---------------------------------------------------------------------------
 builder.Services.AddAiVisibilityScanner();
 builder.Services.AddScoped<IShopScanService, ShopScanService>();
+builder.Services.AddScoped<IShopTrackingService, ShopTrackingService>();
 builder.Services.AddScoped<RecurringScanJob>();
 
 var schedule = builder.Configuration
@@ -123,6 +126,8 @@ app.UseStaticFiles();
 app.MapInstallEndpoints();
 app.MapWebhookEndpoints();
 app.MapDashboardApi();
+app.MapBillingEndpoints();
+app.MapTrackingEndpoints();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 

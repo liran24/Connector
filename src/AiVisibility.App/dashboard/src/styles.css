@@ -145,3 +145,37 @@ p  { margin: 0 0 8px; }
 .empty { text-align: center; }
 .empty .button { margin-top: 12px; }
 .notice { border-left: 3px solid var(--fair); }
+
+/* --- subscribe --- */
+
+.subscribe { border-left: 3px solid var(--accent); }
+.subscribe__error { color: var(--poor); }
+
+/* --- tracking --- */
+
+.tracking__summary { font-size: 15px; }
+.tracking__heading { margin: 20px 0 10px; color: var(--text-muted); font-weight: 600; }
+.tracking__caveat { font-size: 12px; margin-top: 20px; }
+
+.tracking__stats { display: flex; gap: 32px; margin: 16px 0 4px; }
+.stat__value { font-size: 24px; font-weight: 600; }
+.stat__value--strong { color: var(--accent); }
+.stat__label { font-size: 12px; color: var(--text-muted); }
+
+.rivals, .questions { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.rival { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.question { display: flex; gap: 10px; align-items: baseline; font-size: 13px; }
+.question__text { color: var(--text-muted); }
+
+.pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.pill--cited      { background: #e3f1df; color: var(--good); }
+.pill--named-only { background: #fff5ea; color: var(--fair); }
+.pill--absent     { background: var(--bg); color: var(--text-muted); }
+.pill--failed     { background: #fdeae7; color: var(--poor); }

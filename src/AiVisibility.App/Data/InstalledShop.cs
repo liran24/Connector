@@ -68,6 +68,8 @@ public sealed class InstalledShop
         && SubscriptionStatus is SubscriptionStatus.Trialing or SubscriptionStatus.Active;
 
     public List<StoredScan> Scans { get; set; } = new();
+
+    public List<StoredTrackingRun> TrackingRuns { get; set; } = new();
 }
 
 /// <summary>
@@ -87,5 +89,30 @@ public sealed class StoredScan
     public int? Score { get; set; }
 
     /// <summary>The full result as JSON, so a stored report survives changes to the scoring model.</summary>
+    public required string ResultJson { get; set; }
+}
+
+/// <summary>
+/// One tracking run: what assistants answered when asked shopper questions about this shop's
+/// categories.
+/// </summary>
+/// <remarks>
+/// Kept separately from scans because it answers a different question and costs real money to
+/// produce, so a merchant should be able to see past runs without paying to repeat them.
+/// </remarks>
+public sealed class StoredTrackingRun
+{
+    public int Id { get; set; }
+
+    public int InstalledShopId { get; set; }
+
+    public InstalledShop? Shop { get; set; }
+
+    public DateTimeOffset RanAt { get; set; } = DateTimeOffset.UtcNow;
+
+    /// <summary>Share of answers that cited the shop, 0 to 1. The headline number.</summary>
+    public double CitationRate { get; set; }
+
+    /// <summary>The full report as JSON, so an old run keeps the shape it had when written.</summary>
     public required string ResultJson { get; set; }
 }

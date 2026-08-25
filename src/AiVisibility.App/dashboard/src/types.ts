@@ -54,3 +54,54 @@ export interface ScanHistoryPoint {
   scannedAt: string;
   score: number | null;
 }
+
+// --- billing ---
+
+export interface Plan {
+  name: string;
+  monthlyPrice: number;
+  currency: string;
+  trialDays: number;
+  /** True while the app is configured for test charges — no money changes hands. */
+  isTest: boolean;
+}
+
+// --- tracking ---
+
+/** What happened to the shop in one assistant answer. */
+export type QuestionOutcome = "cited" | "named-only" | "absent" | "failed";
+
+export interface TrackedQuestion {
+  engine: string;
+  question: string;
+  category: string;
+  outcome: QuestionOutcome;
+  /** Position among cited sources; null unless the shop was cited. */
+  rank: number | null;
+  error: string | null;
+}
+
+/** A site the assistants sent shoppers to instead. */
+export interface Rival {
+  domain: string;
+  timesCited: number;
+  timesAhead: number;
+}
+
+export interface TrackingReport {
+  ranAt: string;
+  /**
+   * Share of answers that cited the shop's own site, 0 to 1. The headline number, and
+   * deliberately not the same as `mentionRate` — an assistant can name a brand while
+   * linking the shopper somewhere else.
+   */
+  citationRate: number;
+  /** Share of answers where the shop appeared at all. Always at least `citationRate`. */
+  mentionRate: number;
+  averageRank: number | null;
+  answeredQuestions: number;
+  failedQuestions: number;
+  summary: string;
+  rivals: Rival[];
+  questions: TrackedQuestion[];
+}
