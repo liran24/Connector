@@ -427,3 +427,9 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Local development artifacts of the Shopify app
+*.db
+*.db-shm
+*.db-wal
+keyring/
