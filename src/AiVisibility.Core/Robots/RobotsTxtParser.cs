@@ -49,50 +49,29 @@ public sealed class RobotsTxtParser
 
         foreach (var rawLine in content.Split('\n'))
         {
-            var line = StripComment(rawLine).Trim();
-            if (line.Length == 0)
+            if (ReadDirective(rawLine) is not var (field, value))
             {
                 continue;
             }
-
-            var separator = line.IndexOf(':');
-            if (separator <= 0)
-            {
-                continue;
-            }
-
-            var field = line[..separator].Trim().ToLowerInvariant();
-            var value = line[(separator + 1)..].Trim();
 
             switch (field)
             {
                 case "user-agent":
-                    // Consecutive User-agent lines share one rule block; a User-agent line
-                    // after rules starts a new group.
-                    if (current is null || !lastLineWasUserAgent)
-                    {
-                        current = new RobotsGroup();
-                        groups.Add(current);
-                    }
-
+                    current = GroupFor(current, groups, startNew: !lastLineWasUserAgent);
                     current.UserAgents.Add(value.ToLowerInvariant());
                     lastLineWasUserAgent = true;
                     continue;
 
                 case "allow" or "disallow":
                     current?.Rules.Add((field == "allow", value));
-                    lastLineWasUserAgent = false;
-                    continue;
+                    break;
 
                 case "sitemap":
                     sitemaps.Add(value);
-                    lastLineWasUserAgent = false;
-                    continue;
-
-                default:
-                    lastLineWasUserAgent = false;
-                    continue;
+                    break;
             }
+
+            lastLineWasUserAgent = false;
         }
 
         return new RobotsTxtParser(groups, sitemaps);
@@ -184,9 +163,37 @@ public sealed class RobotsTxtParser
         return new Regex(regex.ToString(), RegexOptions.None, TimeSpan.FromSeconds(1));
     }
 
-    private static string StripComment(string line)
+    /// <summary>
+    /// Splits one line into its lower-cased field name and value, ignoring comments, blank
+    /// lines and anything without a colon.
+    /// </summary>
+    private static (string Field, string Value)? ReadDirective(string rawLine)
     {
-        var hash = line.IndexOf('#');
-        return hash >= 0 ? line[..hash] : line;
+        var hash = rawLine.IndexOf('#');
+        var line = (hash >= 0 ? rawLine[..hash] : rawLine).Trim();
+
+        var separator = line.IndexOf(':');
+        if (separator <= 0)
+        {
+            return null;
+        }
+
+        return (line[..separator].Trim().ToLowerInvariant(), line[(separator + 1)..].Trim());
+    }
+
+    /// <summary>
+    /// Consecutive <c>User-agent</c> lines share one rule block; a <c>User-agent</c> line that
+    /// follows rules starts a new group.
+    /// </summary>
+    private static RobotsGroup GroupFor(RobotsGroup? current, List<RobotsGroup> groups, bool startNew)
+    {
+        if (current is not null && !startNew)
+        {
+            return current;
+        }
+
+        var group = new RobotsGroup();
+        groups.Add(group);
+        return group;
     }
 }

@@ -1,4 +1,3 @@
-using AiVisibility.Core.Catalog;
 using AiVisibility.Core.Checks;
 using AiVisibility.Core.Http;
 using AiVisibility.Core.Models;
@@ -6,15 +5,15 @@ using AiVisibility.Core.Models;
 namespace AiVisibility.Core;
 
 /// <summary>
-/// Runs every check against a storefront and combines them into one score.
+/// How much each area contributes to the headline score.
 /// </summary>
-public sealed class StoreScanner
+/// <remarks>
+/// Crawler access and structured data dominate because they are the two things that decide
+/// whether an agent can use the store at all.
+/// </remarks>
+public sealed class AreaWeights
 {
-    /// <summary>
-    /// How much each area contributes. Crawler access and structured data dominate because
-    /// they are the two things that decide whether an agent can use the store at all.
-    /// </summary>
-    private static readonly IReadOnlyDictionary<ScoreArea, double> Weights = new Dictionary<ScoreArea, double>
+    private static readonly IReadOnlyDictionary<ScoreArea, double> Defaults = new Dictionary<ScoreArea, double>
     {
         [ScoreArea.CrawlerAccess] = 0.35,
         [ScoreArea.StructuredData] = 0.35,
@@ -22,14 +21,57 @@ public sealed class StoreScanner
         [ScoreArea.DiscoveryFiles] = 0.10
     };
 
-    private readonly IPageFetcher _fetcher;
-    private readonly ShopifyCatalogSource _catalog;
+    private readonly IReadOnlyDictionary<ScoreArea, double> _weights;
 
-    public StoreScanner(IPageFetcher fetcher)
+    public AreaWeights(IReadOnlyDictionary<ScoreArea, double>? weights = null) => _weights = weights ?? Defaults;
+
+    /// <summary>An area with no configured weight still counts, just modestly.</summary>
+    public double For(ScoreArea area) => _weights.GetValueOrDefault(area, 0.1);
+
+    /// <summary>
+    /// Averages the verified areas, renormalising their weights so a partial scan is scored on
+    /// its own terms rather than penalised for what could not be read.
+    /// </summary>
+    public int? Combine(IReadOnlyList<AreaResult> verified)
     {
-        _fetcher = fetcher;
-        _catalog = new ShopifyCatalogSource(fetcher);
+        if (verified.Count == 0)
+        {
+            return null;
+        }
+
+        var totalWeight = verified.Sum(area => For(area.Area));
+        var weighted = verified.Sum(area => area.Score!.Value * For(area.Area));
+
+        return (int)Math.Round(weighted / totalWeight);
     }
+}
+
+/// <summary>
+/// Reads a storefront once, runs every registered check against it, and combines the results.
+/// </summary>
+public sealed class StoreScanner
+{
+    private readonly IStorefrontProbe _probe;
+    private readonly IReadOnlyList<ICheck> _checks;
+    private readonly AreaWeights _weights;
+
+    public StoreScanner(IStorefrontProbe probe, IEnumerable<ICheck> checks, AreaWeights? weights = null)
+    {
+        _probe = probe;
+        _checks = checks.ToList();
+        _weights = weights ?? new AreaWeights();
+    }
+
+    /// <summary>Builds a scanner with the standard checks, for callers not using a DI container.</summary>
+    public static StoreScanner CreateDefault(IPageFetcher fetcher) => new(
+        new StorefrontProbe(fetcher),
+        new ICheck[]
+        {
+            new CrawlerAccessCheck(),
+            new StructuredDataCheck(fetcher),
+            new ContentDepthCheck(),
+            new DiscoveryFilesCheck(fetcher)
+        });
 
     /// <summary>
     /// Audits a store.
@@ -44,69 +86,37 @@ public sealed class StoreScanner
         int productSample = 10,
         CancellationToken cancellationToken = default)
     {
-        // If the storefront itself will not answer, every check below is guesswork. Say so
-        // once, up front, instead of emitting four separately-wrong sub-scores.
-        var root = await _fetcher.GetAsync(storeUrl, cancellationToken).ConfigureAwait(false);
-        if (!root.IsSuccess)
+        var snapshot = await _probe.CaptureAsync(storeUrl, productSample, cancellationToken).ConfigureAwait(false);
+        if (snapshot is null)
         {
-            return Unreachable(storeUrl, root.Error ?? $"the storefront returned HTTP {root.StatusCode}");
+            return Unreachable(storeUrl, _probe.FailureReason ?? "the storefront could not be read");
         }
 
-        var (crawlerAccess, robots) = await new CrawlerAccessCheck(_fetcher)
-            .RunAsync(storeUrl, cancellationToken)
-            .ConfigureAwait(false);
+        var areas = new List<AreaResult>();
+        foreach (var check in _checks)
+        {
+            areas.Add(await check.RunAsync(snapshot, cancellationToken).ConfigureAwait(false));
+        }
 
-        var products = await _catalog
-            .GetProductsAsync(storeUrl, productSample, cancellationToken)
-            .ConfigureAwait(false);
-
-        var structuredData = await new StructuredDataCheck(_fetcher)
-            .RunAsync(products, cancellationToken)
-            .ConfigureAwait(false);
-
-        var contentDepth = new ContentDepthCheck().Run(products);
-
-        var discoveryFiles = await new DiscoveryFilesCheck(_fetcher)
-            .RunAsync(storeUrl, robots, cancellationToken)
-            .ConfigureAwait(false);
-
-        var areas = new[] { crawlerAccess, structuredData, contentDepth, discoveryFiles };
         var verified = areas.Where(a => !a.IsInconclusive).ToList();
 
-        var status = verified.Count == areas.Length ? ScanStatus.Complete
+        var status = verified.Count == areas.Count ? ScanStatus.Complete
             : verified.Count == 0 ? ScanStatus.Unreachable
             : ScanStatus.Partial;
 
         return new ScanResult(
             storeUrl,
-            CombineScores(verified),
+            _weights.Combine(verified),
             status,
             areas,
-            products.Count,
+            snapshot.Products.Count,
             DateTimeOffset.UtcNow);
     }
 
-    /// <summary>
-    /// Averages the areas that were actually verified, renormalising their weights so a
-    /// partial scan is scored on its own terms rather than penalised for what it could not read.
-    /// </summary>
-    private static int? CombineScores(IReadOnlyList<AreaResult> verified)
+    private ScanResult Unreachable(Uri storeUrl, string reason)
     {
-        if (verified.Count == 0)
-        {
-            return null;
-        }
-
-        var totalWeight = verified.Sum(area => Weights[area.Area]);
-        var weighted = verified.Sum(area => area.Score!.Value * Weights[area.Area]);
-
-        return (int)Math.Round(weighted / totalWeight);
-    }
-
-    private static ScanResult Unreachable(Uri storeUrl, string reason)
-    {
-        var areas = Weights.Keys
-            .Select(area => AreaResult.Inconclusive(area, reason))
+        var areas = _checks
+            .Select(check => AreaResult.Inconclusive(check.Area, reason))
             .ToList();
 
         return new ScanResult(storeUrl, Score: null, ScanStatus.Unreachable, areas, 0, DateTimeOffset.UtcNow);

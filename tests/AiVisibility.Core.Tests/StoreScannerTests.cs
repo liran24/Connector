@@ -50,7 +50,7 @@ public class StoreScannerTests
     [Fact]
     public async Task HealthyStore_ScoresNearPerfect()
     {
-        var result = await new StoreScanner(HealthyStore()).ScanAsync(StoreUrl);
+        var result = await StoreScanner.CreateDefault(HealthyStore()).ScanAsync(StoreUrl);
 
         Assert.Equal(100, result.Score);
         Assert.Empty(result.Findings);
@@ -63,7 +63,7 @@ public class StoreScannerTests
         var fetcher = HealthyStore()
             .Add("/robots.txt", "User-agent: GPTBot\nDisallow: /\n", "text/plain");
 
-        var result = await new StoreScanner(fetcher).ScanAsync(StoreUrl);
+        var result = await StoreScanner.CreateDefault(fetcher).ScanAsync(StoreUrl);
 
         var finding = Assert.Single(result.Findings, f => f.Code == "crawler-blocked:GPTBot");
         Assert.Equal(Severity.Critical, finding.Severity);
@@ -81,7 +81,7 @@ public class StoreScannerTests
             .Add("/products.json?limit=10", CatalogJson(DetailedDescription), "application/json")
             .Add("/products/kettle", RichProductPage);
 
-        var result = await new StoreScanner(fetcher).ScanAsync(StoreUrl);
+        var result = await StoreScanner.CreateDefault(fetcher).ScanAsync(StoreUrl);
 
         Assert.DoesNotContain(result.Findings, f => f.Code.StartsWith("crawler-blocked"));
         var crawlerArea = result.Areas.Single(a => a.Area == ScoreArea.CrawlerAccess);
@@ -94,7 +94,7 @@ public class StoreScannerTests
         var fetcher = HealthyStore()
             .Add("/products/kettle", "<html><body>A lovely kettle</body></html>");
 
-        var result = await new StoreScanner(fetcher).ScanAsync(StoreUrl);
+        var result = await StoreScanner.CreateDefault(fetcher).ScanAsync(StoreUrl);
 
         var finding = Assert.Single(result.Findings, f => f.Code == "schema-missing-product");
         Assert.Equal(Severity.Critical, finding.Severity);
@@ -106,7 +106,7 @@ public class StoreScannerTests
         var fetcher = HealthyStore()
             .Add("/products.json?limit=10", CatalogJson("<p>You'll love it!</p>"), "application/json");
 
-        var result = await new StoreScanner(fetcher).ScanAsync(StoreUrl);
+        var result = await StoreScanner.CreateDefault(fetcher).ScanAsync(StoreUrl);
 
         Assert.Contains(result.Findings, f => f.Code == "content-thin-description");
     }
@@ -117,7 +117,7 @@ public class StoreScannerTests
         var fluff = "<p>" + string.Join(" ", Enumerable.Repeat("You will absolutely adore this beautiful piece", 12)) + "</p>";
         var fetcher = HealthyStore().Add("/products.json?limit=10", CatalogJson(fluff), "application/json");
 
-        var result = await new StoreScanner(fetcher).ScanAsync(StoreUrl);
+        var result = await StoreScanner.CreateDefault(fetcher).ScanAsync(StoreUrl);
 
         Assert.Contains(result.Findings, f => f.Code == "content-no-specifics");
         Assert.DoesNotContain(result.Findings, f => f.Code == "content-thin-description");
@@ -132,7 +132,7 @@ public class StoreScannerTests
             .Add("/products.json?limit=10", CatalogJson(DetailedDescription), "application/json")
             .Add("/products/kettle", RichProductPage);
 
-        var result = await new StoreScanner(fetcher).ScanAsync(StoreUrl);
+        var result = await StoreScanner.CreateDefault(fetcher).ScanAsync(StoreUrl);
 
         Assert.Contains(result.Findings, f => f.Code == "discovery-no-sitemap");
         Assert.Contains(result.Findings, f => f.Code == "discovery-no-llms-txt");
@@ -143,7 +143,7 @@ public class StoreScannerTests
     {
         var fetcher = HealthyStore().Add("/llms.txt", string.Empty, "text/plain", status: 404);
 
-        var result = await new StoreScanner(fetcher).ScanAsync(StoreUrl);
+        var result = await StoreScanner.CreateDefault(fetcher).ScanAsync(StoreUrl);
 
         var finding = Assert.Single(result.Findings);
         Assert.Equal("discovery-no-llms-txt", finding.Code);
@@ -160,7 +160,7 @@ public class StoreScannerTests
             .Add("/sitemap.xml", "<urlset></urlset>", "application/xml")
             .Add("/llms.txt", "# Shop", "text/plain");
 
-        var result = await new StoreScanner(fetcher).ScanAsync(StoreUrl);
+        var result = await StoreScanner.CreateDefault(fetcher).ScanAsync(StoreUrl);
 
         Assert.Equal(0, result.ProductsInspected);
         Assert.Equal(ScanStatus.Partial, result.Status);
@@ -178,7 +178,7 @@ public class StoreScannerTests
         // Every request fails, as it would behind bot protection. Reporting a healthy score
         // here was a real bug: it told the stores most likely to be blocking crawlers that
         // they were in perfect shape.
-        var result = await new StoreScanner(new FakePageFetcher()).ScanAsync(StoreUrl);
+        var result = await StoreScanner.CreateDefault(new FakePageFetcher()).ScanAsync(StoreUrl);
 
         Assert.Equal(ScanStatus.Unreachable, result.Status);
         Assert.Null(result.Score);
@@ -194,7 +194,7 @@ public class StoreScannerTests
         var fetcher = HealthyStore()
             .Add("/robots.txt", string.Empty, "text/plain", status: 403);
 
-        var result = await new StoreScanner(fetcher).ScanAsync(StoreUrl);
+        var result = await StoreScanner.CreateDefault(fetcher).ScanAsync(StoreUrl);
 
         var crawlerArea = result.Areas.Single(a => a.Area == ScoreArea.CrawlerAccess);
         Assert.True(crawlerArea.IsInconclusive);
@@ -208,7 +208,7 @@ public class StoreScannerTests
             .Add("/sitemap.xml", string.Empty, "application/xml", status: 403)
             .Add("/llms.txt", string.Empty, "text/plain", status: 403);
 
-        var result = await new StoreScanner(fetcher).ScanAsync(StoreUrl);
+        var result = await StoreScanner.CreateDefault(fetcher).ScanAsync(StoreUrl);
 
         Assert.DoesNotContain(result.Findings, f => f.Code == "discovery-no-sitemap");
         Assert.True(result.Areas.Single(a => a.Area == ScoreArea.DiscoveryFiles).IsInconclusive);
@@ -225,7 +225,7 @@ public class StoreScannerTests
             .Add("/sitemap.xml", "<urlset></urlset>", "application/xml")
             .Add("/llms.txt", "# Shop", "text/plain");
 
-        var result = await new StoreScanner(fetcher).ScanAsync(StoreUrl);
+        var result = await StoreScanner.CreateDefault(fetcher).ScanAsync(StoreUrl);
 
         Assert.Equal(ScanStatus.Partial, result.Status);
         Assert.Equal(100, result.Score);
@@ -240,7 +240,7 @@ public class StoreScannerTests
             .Add("/products/kettle", "<html><body>A kettle</body></html>")
             .Add("/llms.txt", string.Empty, "text/plain", status: 404);
 
-        var result = await new StoreScanner(fetcher).ScanAsync(StoreUrl);
+        var result = await StoreScanner.CreateDefault(fetcher).ScanAsync(StoreUrl);
 
         var severities = result.Findings.Select(f => f.Severity).ToList();
         Assert.Equal(severities.OrderByDescending(s => s), severities);
@@ -253,7 +253,7 @@ public class StoreScannerTests
             .Add("/", "<html><body>Shop</body></html>")
             .Add("/robots.txt", "User-agent: *\nDisallow: /", "text/plain");
 
-        var result = await new StoreScanner(brokenStore).ScanAsync(StoreUrl);
+        var result = await StoreScanner.CreateDefault(brokenStore).ScanAsync(StoreUrl);
 
         Assert.InRange(result.Score ?? 0, 0, 100);
         Assert.All(
